@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -64,6 +64,20 @@
       color: #555;
       letter-spacing: 2px;
     }
+    .arrow-btn {
+      background: none;
+      border: none;
+      color: #00d2d3;
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 2px 12px;
+      opacity: 0.45;
+      line-height: 1;
+      transition: opacity 0.15s, transform 0.1s;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .arrow-btn:active { opacity: 1; transform: scale(1.3); }
     .time-input {
       width: clamp(72px, 22vw, 92px);
       height: clamp(72px, 22vw, 92px);
@@ -247,17 +261,23 @@
   <div class="subtitle">Ingresa el tiempo</div>
   <div class="time-row">
     <div class="time-field">
+      <button class="arrow-btn" onclick="changeVal('inp-h',1)" aria-label="Aumentar horas">▲</button>
       <input class="time-input" id="inp-h" type="number" inputmode="numeric" min="0" max="99" value="0">
+      <button class="arrow-btn" onclick="changeVal('inp-h',-1)" aria-label="Disminuir horas">▼</button>
       <label>HH</label>
     </div>
     <span class="colon">:</span>
     <div class="time-field">
+      <button class="arrow-btn" onclick="changeVal('inp-m',1)" aria-label="Aumentar minutos">▲</button>
       <input class="time-input" id="inp-m" type="number" inputmode="numeric" min="0" max="59" value="1">
+      <button class="arrow-btn" onclick="changeVal('inp-m',-1)" aria-label="Disminuir minutos">▼</button>
       <label>MM</label>
     </div>
     <span class="colon">:</span>
     <div class="time-field">
+      <button class="arrow-btn" onclick="changeVal('inp-s',1)" aria-label="Aumentar segundos">▲</button>
       <input class="time-input" id="inp-s" type="number" inputmode="numeric" min="0" max="59" value="0">
+      <button class="arrow-btn" onclick="changeVal('inp-s',-1)" aria-label="Disminuir segundos">▼</button>
       <label>SS</label>
     </div>
   </div>
@@ -646,6 +666,42 @@ function woodenCap(cx, cy, rx, ry, W) {
   ctx.ellipse(cx, cy - ry * 0.1, rx * 0.85, ry * 0.80, 0, Math.PI, Math.PI * 2);
   ctx.fillStyle = hiGrad; ctx.fill();
 }
+
+// ── Gestos y flechas para inputs de tiempo ────────────────────────────────
+function changeVal(id, delta) {
+  const inp = document.getElementById(id);
+  const max = parseInt(inp.max), min = parseInt(inp.min);
+  inp.value = Math.max(min, Math.min(max, (parseInt(inp.value) || 0) + delta));
+}
+
+function setupSwipe(inp) {
+  const min = parseInt(inp.min), max = parseInt(inp.max);
+  let startY = null, startVal = 0;
+
+  inp.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startVal = parseInt(inp.value) || 0;
+  }, { passive: true });
+
+  inp.addEventListener('touchmove', e => {
+    if (startY === null) return;
+    const dy = startY - e.touches[0].clientY;
+    if (Math.abs(dy) > 8) {
+      e.preventDefault();
+      if (document.activeElement === inp) inp.blur();
+      inp.value = Math.max(min, Math.min(max, startVal + Math.round(dy / 14)));
+    }
+  }, { passive: false });
+
+  inp.addEventListener('touchend', () => { startY = null; });
+
+  inp.addEventListener('wheel', e => {
+    e.preventDefault();
+    changeVal(inp.id, e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+}
+
+['inp-h', 'inp-m', 'inp-s'].forEach(id => setupSwipe(document.getElementById(id)));
 
 // ── Registro del Service Worker (PWA offline) ────────────────────────────
 if ('serviceWorker' in navigator) {
