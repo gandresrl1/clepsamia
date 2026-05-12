@@ -323,6 +323,20 @@ let sandOffset       = 0;
 let animId           = null;
 let tickId           = null;
 let currentBg        = '#00b400';
+let wakeLock         = null;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (isRunning && document.visibilityState === 'visible') requestWakeLock();
+});
 
 const canvas       = document.getElementById('hourglass-canvas');
 const ctx          = canvas.getContext('2d');
@@ -375,6 +389,7 @@ function startTimer() {
   countdownCard.classList.remove('low-time');
   progressBar.style.width = '0%';
   isRunning = true;
+  requestWakeLock();
 
   showScreen('screen-timer');
   resizeCanvas();
@@ -385,6 +400,7 @@ function startTimer() {
 
 function stop() {
   isRunning = false;
+  releaseWakeLock();
   if (animId) { cancelAnimationFrame(animId); animId = null; }
   if (tickId) { clearTimeout(tickId); tickId = null; }
 }
