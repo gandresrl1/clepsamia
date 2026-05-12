@@ -447,6 +447,7 @@ function stopDoneSound() {
 
 function playDoneSound() {
   doneAudio = new Audio('freesound_community-alarm-26718.mp3');
+  doneAudio.loop = true;
   doneAudio.play().catch(() => {
     try {
       const ac = new (window.AudioContext || window.webkitAudioContext)();
