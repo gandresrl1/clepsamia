@@ -1,0 +1,655 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Temporizador</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" id="meta-theme" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Temporizador">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      height: 100dvh;
+      overflow: hidden;
+      background: #1a1a2e;
+      touch-action: manipulation;
+    }
+    .screen {
+      display: none;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .screen.active { display: flex; }
+
+    /* ── Pantalla 1 ── */
+    #screen-input { background: #1a1a2e; }
+
+    .title {
+      font-size: clamp(1.4rem, 6vw, 2rem);
+      font-weight: 900;
+      color: #00d2d3;
+      letter-spacing: 4px;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: #777;
+      margin-bottom: 38px;
+      letter-spacing: 1px;
+    }
+    .time-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .time-field {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .time-field label {
+      font-size: 0.7rem;
+      color: #555;
+      letter-spacing: 2px;
+    }
+    .time-input {
+      width: clamp(72px, 22vw, 92px);
+      height: clamp(72px, 22vw, 92px);
+      background: #16213e;
+      color: white;
+      border: 2px solid #2a2a5a;
+      border-radius: 14px;
+      font-size: clamp(2rem, 7vw, 2.6rem);
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+      -moz-appearance: textfield;
+    }
+    .time-input::-webkit-inner-spin-button,
+    .time-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .time-input:focus { border-color: #00d2d3; }
+    .colon {
+      font-size: clamp(2rem, 7vw, 2.6rem);
+      font-weight: 700;
+      color: white;
+      margin-bottom: 22px;
+    }
+    .error-msg {
+      color: #ff6b6b;
+      font-size: 0.82rem;
+      min-height: 20px;
+      margin: 12px 0 4px;
+    }
+    .btn-start {
+      margin-top: 18px;
+      padding: 15px 52px;
+      background: #00b894;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-start:active { background: #00cec9; transform: scale(0.96); }
+
+    /* ── Pantalla 2 ── */
+    #screen-timer {
+      background: #00b400;
+      padding: 0 16px 16px;
+      gap: 0;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    /* Barra de progreso */
+    .progress-wrap {
+      width: 100%;
+      height: 4px;
+      background: rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: rgba(255,255,255,0.55);
+      border-radius: 0 2px 2px 0;
+      transition: width 0.9s linear;
+    }
+
+    #hourglass-canvas {
+      display: block;
+      max-width: min(100vw, 100%);
+      flex-shrink: 1;
+      min-height: 0;
+    }
+
+    /* Zona inferior */
+    .timer-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 400px;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    /* Tarjeta countdown con glassmorphism */
+    .countdown-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      background: rgba(0,0,0,0.22);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 22px;
+      padding: 14px 20px 12px;
+      gap: 4px;
+    }
+    .countdown-card.low-time {
+      animation: pulse-warn 0.9s ease-in-out infinite;
+    }
+    @keyframes pulse-warn {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,80,80,0.5); }
+      50%       { box-shadow: 0 0 0 14px rgba(255,80,80,0); }
+    }
+
+    .time-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      flex: 1;
+    }
+    .time-digit {
+      font-size: clamp(2.2rem, 10vw, 3rem);
+      font-weight: 800;
+      color: white;
+      font-variant-numeric: tabular-nums;
+      font-family: 'Courier New', 'Lucida Console', monospace;
+      text-shadow: 0 2px 14px rgba(0,0,0,0.3);
+      line-height: 1;
+    }
+    .time-unit-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 2px;
+    }
+    .time-sep {
+      font-size: clamp(1.8rem, 8vw, 2.4rem);
+      font-weight: 700;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 16px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .done-msg {
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+      min-height: 22px;
+      letter-spacing: 1px;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.3);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .done-msg.visible {
+      opacity: 1;
+      animation: fadeUp 0.4s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .btn-back {
+      padding: 12px 34px;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.35);
+      color: white;
+      border-radius: 50px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: background 0.15s, transform 0.1s;
+      letter-spacing: 0.5px;
+    }
+    .btn-back:active { background: rgba(255,255,255,0.28); transform: scale(0.96); }
+  </style>
+</head>
+<body>
+
+<!-- Pantalla 1: Entrada de tiempo -->
+<div id="screen-input" class="screen active">
+  <div class="title">TEMPORIZADOR</div>
+  <div class="subtitle">Ingresa el tiempo</div>
+  <div class="time-row">
+    <div class="time-field">
+      <input class="time-input" id="inp-h" type="number" inputmode="numeric" min="0" max="99" value="0">
+      <label>HH</label>
+    </div>
+    <span class="colon">:</span>
+    <div class="time-field">
+      <input class="time-input" id="inp-m" type="number" inputmode="numeric" min="0" max="59" value="1">
+      <label>MM</label>
+    </div>
+    <span class="colon">:</span>
+    <div class="time-field">
+      <input class="time-input" id="inp-s" type="number" inputmode="numeric" min="0" max="59" value="0">
+      <label>SS</label>
+    </div>
+  </div>
+  <div class="error-msg" id="error-msg"></div>
+  <button class="btn-start" onclick="startTimer()">▶&nbsp;&nbsp;INICIAR</button>
+</div>
+
+<!-- Pantalla 2: Reloj de arena -->
+<div id="screen-timer" class="screen">
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+  <canvas id="hourglass-canvas"></canvas>
+  <div class="timer-bottom">
+    <div class="countdown-card" id="countdown-card">
+      <div class="time-unit">
+        <span class="time-digit" id="digit-h">00</span>
+        <span class="time-unit-label">HORAS</span>
+      </div>
+      <span class="time-sep">:</span>
+      <div class="time-unit">
+        <span class="time-digit" id="digit-m">00</span>
+        <span class="time-unit-label">MINUTOS</span>
+      </div>
+      <span class="time-sep">:</span>
+      <div class="time-unit">
+        <span class="time-digit" id="digit-s">00</span>
+        <span class="time-unit-label">SEGUNDOS</span>
+      </div>
+    </div>
+    <div class="done-msg" id="done-msg"></div>
+    <button class="btn-back" onclick="goBack()">← Volver</button>
+  </div>
+</div>
+
+<script>
+// ── Estado ────────────────────────────────────────────────────────────────
+let totalSeconds     = 0;
+let remainingSeconds = 0;
+let endTime          = 0;
+let isRunning        = false;
+let sandOffset       = 0;
+let animId           = null;
+let tickId           = null;
+let currentBg        = '#00b400';
+
+const canvas       = document.getElementById('hourglass-canvas');
+const ctx          = canvas.getContext('2d');
+const timerDiv     = document.getElementById('screen-timer');
+const digitH       = document.getElementById('digit-h');
+const digitM       = document.getElementById('digit-m');
+const digitS       = document.getElementById('digit-s');
+const doneEl       = document.getElementById('done-msg');
+const progressBar  = document.getElementById('progress-bar');
+const countdownCard = document.getElementById('countdown-card');
+
+// ── Pantallas ─────────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goBack() {
+  stop();
+  stopDoneSound();
+  showScreen('screen-input');
+  setBg('#00b400');
+  document.getElementById('meta-theme').content = '#1a1a2e';
+}
+
+function setBg(color) {
+  currentBg = color;
+  timerDiv.style.background = color;
+}
+
+// ── Iniciar temporizador ──────────────────────────────────────────────────
+function startTimer() {
+  const h = Math.max(0, parseInt(document.getElementById('inp-h').value) || 0);
+  const m = Math.max(0, parseInt(document.getElementById('inp-m').value) || 0);
+  const s = Math.max(0, parseInt(document.getElementById('inp-s').value) || 0);
+  const total = h * 3600 + m * 60 + s;
+
+  if (total <= 0) {
+    document.getElementById('error-msg').textContent = 'El tiempo debe ser mayor a 0.';
+    return;
+  }
+  document.getElementById('error-msg').textContent = '';
+
+  totalSeconds     = total;
+  endTime          = Date.now() + total * 1000;
+  remainingSeconds = total;
+  sandOffset       = 0;
+  doneEl.textContent = '';
+  doneEl.classList.remove('visible');
+  countdownCard.classList.remove('low-time');
+  progressBar.style.width = '0%';
+  isRunning = true;
+
+  showScreen('screen-timer');
+  resizeCanvas();
+  setBg(bgColor(0));
+  tick();
+  animId = requestAnimationFrame(drawFrame);
+}
+
+function stop() {
+  isRunning = false;
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  if (tickId) { clearTimeout(tickId); tickId = null; }
+}
+
+// ── Tick (cada ~250ms para precision) ────────────────────────────────────
+function tick() {
+  if (!isRunning) return;
+  remainingSeconds = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+
+  const h = Math.floor(remainingSeconds / 3600);
+  const m = Math.floor((remainingSeconds % 3600) / 60);
+  const s = remainingSeconds % 60;
+  digitH.textContent = String(h).padStart(2, '0');
+  digitM.textContent = String(m).padStart(2, '0');
+  digitS.textContent = String(s).padStart(2, '0');
+
+  const ratio = 1 - remainingSeconds / totalSeconds;
+  setBg(bgColor(ratio));
+  document.getElementById('meta-theme').content = currentBg;
+  progressBar.style.width = (ratio * 100) + '%';
+
+  if (remainingSeconds <= 10) countdownCard.classList.add('low-time');
+
+  if (remainingSeconds <= 0) {
+    stop();
+    digitH.textContent = '00';
+    digitM.textContent = '00';
+    digitS.textContent = '00';
+    doneEl.textContent = '¡Tiempo terminado!';
+    doneEl.classList.add('visible');
+    drawHourglass(1.0);
+    playDoneSound();
+    flash(0);
+    return;
+  }
+  tickId = setTimeout(tick, 250);
+}
+
+// ── Loop de animacion ─────────────────────────────────────────────────────
+function drawFrame() {
+  if (!isRunning) return;
+  sandOffset += 0.35;
+  const ratio = 1 - remainingSeconds / totalSeconds;
+  drawHourglass(ratio);
+  animId = requestAnimationFrame(drawFrame);
+}
+
+// ── Color de fondo (verde → amarillo → rojo) ──────────────────────────────
+function bgColor(ratio) {
+  let r, g;
+  if (ratio <= 0.5) {
+    const t = ratio * 2;
+    r = Math.round(t * 220); g = 180;
+  } else {
+    const t = (ratio - 0.5) * 2;
+    r = 220; g = Math.round((1 - t) * 180);
+  }
+  return `rgb(${r},${g},0)`;
+}
+
+// ── Flash al terminar ─────────────────────────────────────────────────────
+function flash(count) {
+  if (count >= 8) return;
+  const color = count % 2 === 0 ? '#dd0000' : '#990000';
+  setBg(color);
+  drawHourglass(1.0);
+  setTimeout(() => flash(count + 1), 350);
+}
+
+// ── Sonido ────────────────────────────────────────────────────────────────
+let doneAudio = null;
+
+function stopDoneSound() {
+  if (doneAudio) {
+    doneAudio.pause();
+    doneAudio.currentTime = 0;
+    doneAudio = null;
+  }
+}
+
+function playDoneSound() {
+  doneAudio = new Audio('freesound_community-alarm-26718.mp3');
+  doneAudio.play().catch(() => {
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      [[600, 0], [800, 0.22], [1050, 0.44]].forEach(([freq, delay]) => {
+        const osc  = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.25, ac.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + delay + 0.4);
+        osc.start(ac.currentTime + delay);
+        osc.stop(ac.currentTime + delay + 0.5);
+      });
+    } catch (_) {}
+  });
+}
+
+// ── Canvas responsive ─────────────────────────────────────────────────────
+function resizeCanvas() {
+  const maxW = Math.min(window.innerWidth - 24, 420);
+  const maxH = Math.floor(window.innerHeight * 0.60);
+  const size = Math.min(maxW, maxH);
+  canvas.width  = size;
+  canvas.height = size;
+}
+window.addEventListener('resize', () => { if (isRunning) { resizeCanvas(); } });
+
+// ── Dibujo del reloj de arena ────────────────────────────────────────────
+function drawHourglass(ratio) {
+  const W = canvas.width, H = canvas.height;
+  if (W === 0 || H === 0) return;
+  const cx    = W / 2;
+  const topY  = H * 0.10;
+  const botY  = H * 0.90;
+  const midY  = H * 0.50;
+  const halfH = midY - topY;
+  const capRX = W * 0.30;
+  const capRY = H * 0.054;
+  const neckW = W * 0.020;
+  const chamW = W * 0.270;
+  const edgeW = W * 0.200;
+
+  function topPath() {
+    ctx.beginPath();
+    ctx.moveTo(cx - edgeW, topY);
+    ctx.bezierCurveTo(cx - chamW, topY + halfH * 0.35, cx - chamW, topY + halfH * 0.65, cx - neckW, midY);
+    ctx.lineTo(cx + neckW, midY);
+    ctx.bezierCurveTo(cx + chamW, topY + halfH * 0.65, cx + chamW, topY + halfH * 0.35, cx + edgeW, topY);
+    ctx.closePath();
+  }
+
+  function botPath() {
+    ctx.beginPath();
+    ctx.moveTo(cx - neckW, midY);
+    ctx.bezierCurveTo(cx - chamW, midY + halfH * 0.35, cx - chamW, midY + halfH * 0.65, cx - edgeW, botY);
+    ctx.lineTo(cx + edgeW, botY);
+    ctx.bezierCurveTo(cx + chamW, midY + halfH * 0.65, cx + chamW, midY + halfH * 0.35, cx + neckW, midY);
+    ctx.closePath();
+  }
+
+  // Fondo
+  ctx.fillStyle = currentBg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Gradiente del vidrio
+  const glassGrad = ctx.createLinearGradient(cx - chamW, 0, cx + chamW, 0);
+  glassGrad.addColorStop(0,    'rgba(200,225,245,0.80)');
+  glassGrad.addColorStop(0.20, 'rgba(220,237,250,0.92)');
+  glassGrad.addColorStop(0.50, 'rgba(240,250,255,1.00)');
+  glassGrad.addColorStop(0.80, 'rgba(220,237,250,0.92)');
+  glassGrad.addColorStop(1,    'rgba(200,225,245,0.80)');
+
+  // Camara superior
+  ctx.save();
+  topPath(); ctx.clip();
+  topPath(); ctx.fillStyle = glassGrad; ctx.fill();
+
+  const syTop = topY + ratio * halfH;
+  if (ratio < 0.998) {
+    ctx.fillStyle = '#e6a817';
+    ctx.fillRect(cx - chamW - 4, syTop, (chamW + 4) * 2, midY - syTop + 2);
+    ctx.fillStyle = '#c4880a';
+    ctx.fillRect(cx - chamW - 4, syTop, (chamW + 4) * 2, H * 0.013);
+    ctx.beginPath();
+    ctx.moveTo(cx - chamW - 4, syTop); ctx.lineTo(cx + chamW + 4, syTop);
+    ctx.strokeStyle = '#9a5f00'; ctx.lineWidth = H * 0.007; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - chamW, syTop + H * 0.005); ctx.lineTo(cx + chamW, syTop + H * 0.005);
+    ctx.strokeStyle = '#f5d060'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  ctx.restore();
+
+  // Camara inferior
+  ctx.save();
+  botPath(); ctx.clip();
+  botPath(); ctx.fillStyle = glassGrad; ctx.fill();
+
+  const syBot = botY - ratio * halfH;
+  if (ratio > 0.002) {
+    ctx.fillStyle = '#c4880a';
+    ctx.fillRect(cx - chamW - 4, syBot, (chamW + 4) * 2, botY - syBot + 2);
+    ctx.fillStyle = '#e6a817';
+    ctx.fillRect(cx - chamW - 4, syBot + H * 0.012, (chamW + 4) * 2, botY - syBot - H * 0.012 + 2);
+    const hiH = Math.min(H * 0.035, ratio * H * 0.045 + H * 0.01);
+    ctx.fillStyle = '#f5d060';
+    ctx.fillRect(cx - chamW - 4, syBot, (chamW + 4) * 2, hiH);
+    ctx.beginPath();
+    ctx.moveTo(cx - chamW - 4, syBot); ctx.lineTo(cx + chamW + 4, syBot);
+    ctx.strokeStyle = '#9a5f00'; ctx.lineWidth = H * 0.007; ctx.stroke();
+  }
+  ctx.restore();
+
+  // Contorno del vidrio
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#4a7090';
+  ctx.lineWidth = W * 0.007;
+  topPath(); ctx.stroke();
+  botPath(); ctx.stroke();
+
+  // Reflejo del vidrio
+  ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - edgeW * 0.72, topY + halfH * 0.06);
+  ctx.bezierCurveTo(
+    cx - chamW * 0.82, topY + halfH * 0.35,
+    cx - chamW * 0.72, topY + halfH * 0.62,
+    cx - neckW * 1.4,  midY - halfH * 0.06);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - neckW * 1.4, midY + halfH * 0.06);
+  ctx.bezierCurveTo(
+    cx - chamW * 0.72, midY + halfH * 0.35,
+    cx - chamW * 0.82, midY + halfH * 0.62,
+    cx - edgeW * 0.72, botY - halfH * 0.06);
+  ctx.stroke();
+
+  // Chorro de arena
+  if (ratio > 0.002 && ratio < 0.998) {
+    const syBotD = botY - ratio * halfH;
+    const dropH  = Math.max(12, syBotD - midY - 4);
+    for (let i = 0; i < 6; i++) {
+      const fy = midY + ((i * 17 + sandOffset * 5) % dropH);
+      const rp = 1.5 + (i % 3) * 0.5;
+      ctx.beginPath();
+      ctx.arc(cx, fy + rp, rp, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 === 0 ? '#f5d060' : '#e6a817';
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, midY, W * 0.010, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffe080'; ctx.fill();
+  }
+
+  // Tapas de madera
+  woodenCap(cx, topY, capRX, capRY, W);
+  woodenCap(cx, botY, capRX, capRY, W);
+}
+
+// ── Tapa de madera ────────────────────────────────────────────────────────
+function woodenCap(cx, cy, rx, ry, W) {
+  const grad = ctx.createLinearGradient(cx - rx, cy, cx + rx, cy);
+  grad.addColorStop(0,    '#3d1c02');
+  grad.addColorStop(0.15, '#7a3a0a');
+  grad.addColorStop(0.35, '#c07820');
+  grad.addColorStop(0.50, '#e8a830');
+  grad.addColorStop(0.65, '#c07820');
+  grad.addColorStop(0.85, '#7a3a0a');
+  grad.addColorStop(1,    '#3d1c02');
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = '#2a0e01'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  [rx * 0.76, rx * 0.52, rx * 0.30].forEach((r, i) => {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r, ry * (r / rx), 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0,0,0,${0.22 + i * 0.08})`; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r, ry * (r / rx), 0, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.strokeStyle = `rgba(255,220,120,${0.30 - i * 0.06})`; ctx.lineWidth = 1; ctx.stroke();
+  });
+
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, W * 0.017, ry * 0.36, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#1e0800'; ctx.fill();
+  ctx.strokeStyle = '#4a2000'; ctx.lineWidth = 1; ctx.stroke();
+
+  const hiGrad = ctx.createLinearGradient(cx, cy - ry, cx, cy);
+  hiGrad.addColorStop(0, 'rgba(255,230,150,0.50)');
+  hiGrad.addColorStop(1, 'rgba(255,230,150,0.00)');
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - ry * 0.1, rx * 0.85, ry * 0.80, 0, Math.PI, Math.PI * 2);
+  ctx.fillStyle = hiGrad; ctx.fill();
+}
+
+// ── Registro del Service Worker (PWA offline) ────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
